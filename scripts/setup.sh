@@ -6,8 +6,10 @@ sudo apt install lshw build-essential fio iperf3 stress-ng git  -y
 git clone https://github.com/intel/lmbench.git
 cd lmbench
 make
-find . -name lat_mem_rd
+cd ..
 
+echo "lat_mem_rd path(s):"
+find . -name lat_mem_rd
 
 wget http://www.cs.virginia.edu/stream/FTP/Code/stream.c
 gcc -O2 -fopenmp -DSTREAM_ARRAY_SIZE=80000000 -DNTIMES=100 stream.c -o stream
