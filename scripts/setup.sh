@@ -1,7 +1,7 @@
 #!/bin/bash
 
 sudo apt update
-sudo apt install lshw build-essential fio iperf3 stress-ng git  -y
+sudo apt install lshw build-essential fio iperf stress-ng git  -y
 
 git clone https://github.com/intel/lmbench.git
 cd lmbench
