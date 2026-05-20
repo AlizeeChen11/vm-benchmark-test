@@ -125,13 +125,26 @@ Run all disk categories:
 bash tests/diskbench.sh all both
 ```
 
+The throughput profile is tuned for peak bandwidth. It uses one aggregate fio job across all discovered NVMe disks, with `FIO_NUMJOBS=160` total jobs and `FIO_IODEPTH=4096` by default. The script also raises `fs.aio-max-nr` and the fio open-file limit before running, which avoids `Too many open files` errors at high job counts.
+
+You can override throughput settings with environment variables:
+
+```bash
+FIO_NUMJOBS=80 FIO_IODEPTH=4096 bash tests/diskbench.sh throughput read
+FIO_NUMJOBS=128 FIO_IODEPTH=4096 bash tests/diskbench.sh throughput read
+FIO_NUMJOBS=160 FIO_IODEPTH=4096 bash tests/diskbench.sh throughput read
+FIO_BS=2M FIO_NUMJOBS=160 FIO_IODEPTH=4096 bash tests/diskbench.sh throughput write
+```
+
+For peak throughput, focus on `READ` or `WRITE` bandwidth, disk `util`, and CPU usage. High latency is expected when using very deep queues to maximize bandwidth.
+
 Disk test profiles:
 
 | Category | Workload | Block size | I/O depth | Jobs | Runtime |
 | --- | --- | --- | --- | --- | --- |
 | Latency | randread/randwrite | 4k | 1 | 1 | 120s |
 | IOPS | randread/randwrite | 4k | 128 | 4 | 300s |
-| Throughput | randread/randwrite | 1M | 128 | 4 | 300s |
+| Throughput | randread/randwrite | 1M | 4096 | 160 total | 300s |
 
 Results are written under per-test directories in `results/`, such as `results/randread-latency-*`, `results/randwrite-iops-*`, and `results/randread-throughput-*`.
 

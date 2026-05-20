@@ -57,6 +57,20 @@ discard_fio_devices() {
      done
 }
 
+configure_fio_runtime_limits() {
+     fio_aio_max_nr="${FIO_AIO_MAX_NR:-16777216}"
+     fio_nofile_limit="${FIO_NOFILE_LIMIT:-1048576}"
+
+     sudo sysctl -w fs.aio-max-nr="${fio_aio_max_nr}"
+}
+
+run_fio_job_file() {
+     local job_file="$1"
+     local output_file="$2"
+
+     sudo bash -c 'ulimit -n "$1"; shift; exec fio "$@"' bash "${fio_nofile_limit}" "${job_file}" --eta=never --output="${output_file}"
+}
+
 write_fio_job_file() {
      local job_file="$1"
      local test_name="$2"
@@ -97,6 +111,42 @@ EOF
      done
 }
 
+write_fio_aggregate_job_file() {
+     local job_file="$1"
+     local test_name="$2"
+     local rw_mode="$3"
+     local block_size="$4"
+     local io_depth="$5"
+     local num_jobs="$6"
+     local runtime_seconds="$7"
+     local filenames
+
+     filenames="$(IFS=:; echo "${fio_devices[*]}")"
+
+     cat > "${job_file}" <<EOF
+[global]
+ioengine=libaio
+direct=1
+thread=1
+group_reporting=1
+time_based=1
+runtime=${runtime_seconds}
+ramp_time=5
+refill_buffers=1
+norandommap=1
+randrepeat=0
+percentile_list=1:5:10:20:30:40:50:60:70:80:90:95:99:99.5:99.9:99.95:99.99
+rw=${rw_mode}
+bs=${block_size}
+iodepth=${io_depth}
+numjobs=${num_jobs}
+
+[${test_name}]
+filename=${filenames}
+
+EOF
+}
+
 run_disk_fio_test() {
      local test_name="$1"
      local rw_mode="$2"
@@ -108,8 +158,7 @@ run_disk_fio_test() {
      setup_disk_result_dir "${test_name}"
      check_disk_test_prerequisites
      discover_partition_free_nvme_disks
-     sudo sysctl -w fs.aio-max-nr=2097152
-     ulimit -n 65535
+     configure_fio_runtime_limits
 
      local job_file="${disk_result_dir}/${test_name}.fio"
      local output_file="${disk_result_dir}/${test_name}-results.txt"
@@ -119,5 +168,31 @@ run_disk_fio_test() {
      echo "Running ${test_name}: rw=${rw_mode}, bs=${block_size}, iodepth=${io_depth}, numjobs=${num_jobs}, runtime=${runtime_seconds}s"
      echo "Job file: ${job_file}"
      echo "Result file: ${output_file}"
-     sudo fio "${job_file}" --eta=never --output="${output_file}"
+     run_fio_job_file "${job_file}" "${output_file}"
+}
+
+run_disk_fio_aggregate_test() {
+     local test_name="$1"
+     local rw_mode="$2"
+     local block_size="$3"
+     local io_depth="$4"
+     local num_jobs="$5"
+     local runtime_seconds="$6"
+
+     setup_disk_result_dir "${test_name}"
+     check_disk_test_prerequisites
+     discover_partition_free_nvme_disks
+     configure_fio_runtime_limits
+
+     local job_file="${disk_result_dir}/${test_name}.fio"
+     local output_file="${disk_result_dir}/${test_name}-results.txt"
+
+     write_fio_aggregate_job_file "${job_file}" "${test_name}" "${rw_mode}" "${block_size}" "${io_depth}" "${num_jobs}" "${runtime_seconds}"
+     discard_fio_devices
+     echo "Running ${test_name}: rw=${rw_mode}, bs=${block_size}, iodepth=${io_depth}, total_numjobs=${num_jobs}, runtime=${runtime_seconds}s"
+     echo "AIO max nr: ${fio_aio_max_nr}"
+     echo "Open file limit: ${fio_nofile_limit}"
+     echo "Job file: ${job_file}"
+     echo "Result file: ${output_file}"
+     run_fio_job_file "${job_file}" "${output_file}"
 }
